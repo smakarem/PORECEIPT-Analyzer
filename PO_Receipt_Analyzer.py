@@ -1,5 +1,3 @@
-### APPPORECEIVE
-
 import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
@@ -13,17 +11,21 @@ st.set_page_config(
     layout="wide"
 )
 
+# --------------------------------------------------
+# SESSION STATE
+# --------------------------------------------------
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
+
 st.title("📦 HxGN EAM PO Receipt / Return Analyzer")
 st.markdown(
-    "Upload PORECEIVEPARTS XML files to analyze Receipts (RECV) and Returns (RETN)."
+    "Upload PORECEIVEPARTS XML files to analyze Receipts (RECV) and Returns (RETN). "
+    "Click a row in the detail table to view the raw XML below."
 )
 
 # --------------------------------------------------
 # CLEAR FILES BUTTON
 # --------------------------------------------------
-if "uploader_key" not in st.session_state:
-    st.session_state.uploader_key = 0
-
 if st.button("🗑 Clear Loaded Files"):
     st.session_state.uploader_key += 1
     st.rerun()
@@ -42,249 +44,163 @@ uploaded_files = st.file_uploader(
 # XML HELPER
 # --------------------------------------------------
 def get_text(parent, tag):
-
     if parent is None:
         return ""
-
     node = parent.find(f".//{tag}")
-
     if node is not None and node.text:
         return node.text.strip()
-
     return ""
-
 
 # --------------------------------------------------
 # SAFE FLOAT
 # --------------------------------------------------
 def safe_float(value):
-
     try:
         return float(str(value).replace(",", ""))
-    except:
+    except Exception:
         return 0.0
-
 
 # --------------------------------------------------
 # PARSER
 # --------------------------------------------------
-def parse_receipt_xml(file, filename):
-
+def parse_receipt_xml(file_obj, filename):
     rows = []
 
-    tree = ET.parse(file)
+    tree = ET.parse(file_obj)
     root = tree.getroot()
 
     header = root.find(".//ITEMHEADER")
 
     po_number = get_text(header, "POID")
     po_release = get_text(header, "PORELEASE")
-
-    trans_code = get_text(
-        header,
-        "DATASTREAM.TRANSCODE"
-    )
-
-    trans_desc = get_text(
-        header,
-        "DATASTREAM.TRANSDESC"
-    )
-
-    trans_type = get_text(
-        header,
-        "DATASTREAM.TRANSTYPE"
-    )
-
-    user_type = get_text(
-        header,
-        "DATASTREAM.USERTYPE"
-    )
-
-    receipt_code = get_text(
-        header,
-        "DATASTREAM.RECEIPTCODE"
-    )
-
-    receipt_acd = get_text(
-        header,
-        "DATASTREAM.ACD"
-    )
-
-    store = get_text(
-        header,
-        "DATASTREAM.USERTOCODE"
-    )
-
-    org = get_text(
-        header,
-        "DATASTREAM.ORG"
-    )
-
-    # Friendly description
+    trans_code = get_text(header, "DATASTREAM.TRANSCODE")
+    trans_desc = get_text(header, "DATASTREAM.TRANSDESC")
+    trans_type = get_text(header, "DATASTREAM.TRANSTYPE")
+    user_type = get_text(header, "DATASTREAM.USERTYPE")
+    receipt_code = get_text(header, "DATASTREAM.RECEIPTCODE")
+    receipt_acd = get_text(header, "DATASTREAM.ACD")
+    store = get_text(header, "DATASTREAM.USERTOCODE")
+    org = get_text(header, "DATASTREAM.ORG")
 
     if trans_type == "RECV":
         transaction_description = "Receipt"
-
     elif trans_type == "RETN":
         transaction_description = "Return"
-
     else:
         transaction_description = trans_type
 
     lines = root.findall(".//ITEMLINE")
 
     for line in lines:
-
         part = get_text(line, "ITEM")
-
-        description = get_text(
-            line,
-            "DESCRIPTN"
-        )
-
-        po_line = get_text(
-            line,
-            "LINENUM"
-        )
-
-        quantity = safe_float(
-            get_text(line, "VALUE")
-        )
-
-        uom = get_text(
-            line,
-            "UOM"
-        )
-
-        price = safe_float(
-            get_text(
-                line,
-                "DATASTREAM.PRICE"
-            )
-        )
-
-        trans_line = get_text(
-            line,
-            "DATASTREAM.TRANSLINE"
-        )
-
+        description = get_text(line, "DESCRIPTN")
+        po_line = get_text(line, "LINENUM")
+        quantity = safe_float(get_text(line, "VALUE"))
+        uom = get_text(line, "UOM")
+        price = safe_float(get_text(line, "DATASTREAM.PRICE"))
+        trans_line = get_text(line, "DATASTREAM.TRANSLINE")
         extended_cost = quantity * price
 
         rows.append({
-
+            "XML Label": "View XML",
             "FileName": filename,
-
-            "Transaction Description":
-                transaction_description,
-
-            "Transaction Type":
-                trans_type,
-
-            "User Type":
-                user_type,
-
-            "Transaction Code":
-                trans_code,
-
-            "Transaction Description XML":
-                trans_desc,
-
-            "Receipt Code":
-                receipt_code,
-
-            "Receipt ACD":
-                receipt_acd,
-
-            "Organization":
-                org,
-
-            "Store":
-                store,
-
-            "PO Number":
-                po_number,
-
-            "PO Release":
-                po_release,
-
-            "PO Line":
-                po_line,
-
-            "Transaction Line":
-                trans_line,
-
-            "Part":
-                part,
-
-            "Description":
-                description,
-
-            "Quantity":
-                quantity,
-
-            "UOM":
-                uom,
-
-            "Price":
-                price,
-
-            "Extended Cost":
-                extended_cost
+            "Transaction Description": transaction_description,
+            "Transaction Type": trans_type,
+            "User Type": user_type,
+            "Transaction Code": trans_code,
+            "Transaction Description XML": trans_desc,
+            "Receipt Code": receipt_code,
+            "Receipt ACD": receipt_acd,
+            "Organization": org,
+            "Store": store,
+            "PO Number": po_number,
+            "PO Release": po_release,
+            "PO Line": po_line,
+            "Transaction Line": trans_line,
+            "Part": part,
+            "Description": description,
+            "Quantity": quantity,
+            "UOM": uom,
+            "Price": price,
+            "Extended Cost": extended_cost
         })
 
     return pd.DataFrame(rows)
-
 
 # --------------------------------------------------
 # MAIN
 # --------------------------------------------------
 if uploaded_files:
-
     all_data = []
-
+    raw_xml_map = {}
     progress = st.progress(0)
 
     for i, file in enumerate(uploaded_files):
-
         try:
+            file_bytes = file.getvalue()
+            raw_xml_map[file.name] = file_bytes.decode("utf-8", errors="replace")
 
-            df = parse_receipt_xml(
-                file,
-                file.name
-            )
-
+            df = parse_receipt_xml(io.BytesIO(file_bytes), file.name)
             all_data.append(df)
 
         except Exception as e:
+            st.error(f"❌ Error processing {file.name}: {e}")
 
-            st.error(
-                f"❌ Error processing {file.name}: {e}"
-            )
-
-        progress.progress(
-            (i + 1) / len(uploaded_files)
-        )
+        progress.progress((i + 1) / len(uploaded_files))
 
     if all_data:
+        final_df = pd.concat(all_data, ignore_index=True)
 
-        final_df = pd.concat(
-            all_data,
-            ignore_index=True
-        )
-
-        st.success(
-            f"✅ Processed {len(uploaded_files)} file(s)"
-        )
+        st.success(f"✅ Processed {len(uploaded_files)} file(s)")
 
         # ------------------------------------------
         # DETAIL REPORT
         # ------------------------------------------
         st.subheader("📋 Receipt / Return Detail")
 
-        st.dataframe(
-            final_df,
-            use_container_width=True
+        display_df = final_df[
+            [
+                "XML Label",
+                "FileName",
+                "Transaction Description",
+                "Store",
+                "PO Number",
+                "PO Release",
+                "PO Line",
+                "Transaction Line",
+                "Part",
+                "Description",
+                "Quantity",
+                "UOM",
+                "Price",
+                "Extended Cost"
+            ]
+        ]
+
+        selection = st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row"
         )
+
+        # ------------------------------------------
+        # RAW XML PANEL
+        # ------------------------------------------
+        if selection and selection["selection"]["rows"]:
+            selected_idx = selection["selection"]["rows"][0]
+            selected_file = display_df.iloc[selected_idx]["FileName"]
+
+            st.subheader(f"📄 Raw XML: {selected_file}")
+            st.code(raw_xml_map[selected_file], language="xml")
+
+            st.download_button(
+                label="📥 Download Selected Raw XML",
+                data=raw_xml_map[selected_file],
+                file_name=selected_file,
+                mime="application/xml"
+            )
 
         # ------------------------------------------
         # SUMMARY REPORT
@@ -310,10 +226,7 @@ if uploaded_files:
             .reset_index()
         )
 
-        st.dataframe(
-            summary_df,
-            use_container_width=True
-        )
+        st.dataframe(summary_df, use_container_width=True)
 
         # ------------------------------------------
         # RECEIPTS VS RETURNS
@@ -322,9 +235,7 @@ if uploaded_files:
 
         totals_df = (
             final_df
-            .groupby(
-                "Transaction Description"
-            )
+            .groupby("Transaction Description")
             .agg(
                 Quantity=("Quantity", "sum"),
                 Value=("Extended Cost", "sum")
@@ -332,38 +243,17 @@ if uploaded_files:
             .reset_index()
         )
 
-        st.dataframe(
-            totals_df,
-            use_container_width=True
-        )
+        st.dataframe(totals_df, use_container_width=True)
 
         # ------------------------------------------
         # EXCEL EXPORT
         # ------------------------------------------
         output = io.BytesIO()
 
-        with pd.ExcelWriter(
-            output,
-            engine="openpyxl"
-        ) as writer:
-
-            final_df.to_excel(
-                writer,
-                sheet_name="Detail",
-                index=False
-            )
-
-            summary_df.to_excel(
-                writer,
-                sheet_name="Summary",
-                index=False
-            )
-
-            totals_df.to_excel(
-                writer,
-                sheet_name="Totals",
-                index=False
-            )
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            final_df.to_excel(writer, sheet_name="Detail", index=False)
+            summary_df.to_excel(writer, sheet_name="Summary", index=False)
+            totals_df.to_excel(writer, sheet_name="Totals", index=False)
 
         st.download_button(
             label="📥 Download Excel Report",
@@ -381,9 +271,5 @@ if uploaded_files:
             file_name="PO_RECEIPT_RETURN_ANALYSIS.csv",
             mime="text/csv"
         )
-
 else:
-
-    st.info(
-        "👆 Upload one or more PORECEIVEPARTS XML files to begin."
-    )
+    st.info("👆 Upload one or more PORECEIVEPARTS XML files to begin.")
